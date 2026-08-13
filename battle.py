@@ -20,14 +20,6 @@ class Battle:
         """Returns the living unit with the lowest HP from a given list."""
         living = [u for u in targets if u.is_alive()]
         return min(living, key=lambda u: u.hp) if living else None
-    
-    def _get_targetheal(self, unit: Unit) -> Unit | None:
-        if unit in self.team:
-            targets = self.team
-        else:
-            targets = self.enemies
-        living = [u for u in targets if u.is_alive()]
-        return min(living, key=lambda u: u.hp) if living else None
 
     def _team_alive(self, team: list[Unit]) -> bool:
         return any(u.is_alive() for u in team)
@@ -60,6 +52,12 @@ class Battle:
                         f"({target.hp}/{target.max_hp} HP remaining)")
                     if not target.is_alive():
                         print(f"  >> {target.name} is defeated!")
+                        for ally in self.team:
+                            if ally.is_alive():
+                                # ally.gain_xp(target.hp+target.attack+target.defense+target.speed+target.wisdom)
+                                exp = (target.max_hp+target.attack+target.defense+target.speed+target.wisdom)
+                                ally.gain_xp(exp)
+
 
 # --- Test ---
 if __name__ == "__main__":
@@ -75,8 +73,8 @@ if __name__ == "__main__":
 
 
 
-    goblin = Unit(name="Goblin Scout", level=1, hp=20, attack=8, defense=2, speed=5, wisdom=2)
-    orc = Unit(name="Orc Grunt", level=2, hp=35, attack=10, defense=5, speed=3, wisdom=1)
+    goblin = Unit(name="Goblin Scout", level=1, hp=30, attack=8, defense=2, speed=5, wisdom=2, exp=0)
+    orc = Unit(name="Orc Grunt", level=2, hp=55, attack=10, defense=5, speed=3, wisdom=1, exp=0)
 
     battle = Battle(team=[hero, companion], enemies=[goblin, orc])
     battle.run()

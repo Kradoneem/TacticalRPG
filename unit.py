@@ -6,7 +6,7 @@ class Unit:
     All combatants in the game inherit from or are instances of this class.
     """
 
-    def __init__(self, name: str, level: int, hp: int, attack: int, defense: int, speed: int, wisdom: int):
+    def __init__(self, name: str, level: int, hp: int, attack: int, defense: int, speed: int, wisdom: int, exp: int=0):
         self.name = name
         self.level = level
         self.max_hp = hp
@@ -16,10 +16,30 @@ class Unit:
         self.speed = speed
         self.wisdom = wisdom
         self.equipment = {}   # slot -> Equipment object
+        self.exp = exp
 
     def is_alive(self) -> bool:
         return self.hp > 0
 
+    def gain_xp(self, amount: int) -> None:
+        self.exp += amount
+        print(f"  {self.name} gains {amount} XP! ({self.exp}/{self.level * 100})")
+        while self.exp >= self.level * 100:
+            self.exp -= self.level * 100
+            self.levelup()
+
+    def levelup(self):
+        self.level = (self.level + 1)
+        #self.exp -= 100
+        self.attack += 1
+        self.defense += 1
+        self.speed += 1
+        self.max_hp += 5
+        self.wisdom += 1
+        print(f"{self.name} levels up to level {self.level}")
+        print(self)
+        return self.level
+        
     def take_damage(self, amount: int) -> int:
         """
         Applies damage after defense reduction.
@@ -32,7 +52,7 @@ class Unit:
     def __repr__(self) -> str:
         return (f"[{self.name} | Lv.{self.level} | "
                 f"HP: {self.hp}/{self.max_hp} | "
-                f"ATK: {self.attack} DEF: {self.defense} SPD: {self.speed} WIS: {self.wisdom}]")
+                f"ATK: {self.attack} DEF: {self.defense} SPD: {self.speed} WIS: {self.wisdom} EXP: {self.exp}/{self.level * 100}]")
 
     def heal(self, amount: int):
         old_hp = self.hp
@@ -66,7 +86,6 @@ class Unit:
 
 # --- Test ---
 if __name__ == "__main__":
-    from unit import Unit
     hero = Unit(name="Nemo", level=1, hp=40, attack=12, defense=4, speed=8, wisdom=5)
     companion = Unit(name="Jeerus", level=1, hp=20, attack=5, defense=5, speed=6, wisdom=15)
     enemy = Unit(name="Goblin Scout", level=1, hp=20, attack=20, defense=2, speed=5, wisdom=5)
@@ -107,9 +126,3 @@ if __name__ == "__main__":
         print(hero)
         print(f"{hero.name} alive: {hero.is_alive()}")
     print(f"{hero.name} & {companion.name} killed {enemy.name}")
-
-
-
-
- 
-    
