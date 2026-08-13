@@ -21,16 +21,16 @@ class Unit:
     def is_alive(self) -> bool:
         return self.hp > 0
 
-    def gain_xp(self, amount: int) -> None:
+    def gain_xp(self, amount: int) -> bool:
         self.exp += amount
-        print(f"  {self.name} gains {amount} XP! ({self.exp}/{self.level * 100})")
-        while self.exp >= self.level * 100:
-            self.exp -= self.level * 100
+        if self.exp >= self.level * 100:
             self.levelup()
+            return True
+        return False
 
     def levelup(self):
+        self.exp -= self.level * 100
         self.level = (self.level + 1)
-        #self.exp -= 100
         self.attack += 1
         self.defense += 1
         self.speed += 1
