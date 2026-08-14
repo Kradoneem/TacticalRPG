@@ -12,9 +12,8 @@ class TitleScene:
     def handle_event(self, event, manager):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN:
-                print("start battle")
-                from battle_scene import BattleScene
-                manager.set_scene(BattleScene())
+                from map_scene import MapScene
+                manager.set_scene(MapScene())
 
     def update(self, manager):
         pass
