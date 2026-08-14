@@ -15,6 +15,10 @@ class Menu:
             self.selected = (self.selected - 1) % len(self.options)
         if key == pygame.K_RIGHT:
             self.selected = (self.selected + 1) % len(self.options)
+        if key == pygame.K_UP:
+            self.selected = (self.selected - 1) % len(self.options)
+        if key == pygame.K_DOWN:
+            self.selected = (self.selected + 1) % len(self.options)
         number_keys = [pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4, pygame.K_5]
         for i, k in enumerate(number_keys):
             if key == k and i < len(self.options):

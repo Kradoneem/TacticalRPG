@@ -1,6 +1,9 @@
+from game_state import GameState
+
 class SceneManager:
     def __init__(self):
         self.current_scene = None
+        self.state         = GameState()   # gedeelde game state voor alle scenes
 
     def set_scene(self, scene):
         self.current_scene = scene
