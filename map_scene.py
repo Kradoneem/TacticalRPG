@@ -1,6 +1,21 @@
 import pygame
 from battle_scene import BattleScene
 from menu import Menu
+from unit import Unit
+
+LOCATION_ENEMIES = {
+    "Forest Outskirts": lambda: [
+        Unit("Goblin", level=1, hp=20, attack=8,  defense=2, speed=5, wisdom=2),
+        Unit("Orc",    level=2, hp=35, attack=10, defense=4, speed=3, wisdom=1),
+    ],
+    "Ruined Village": lambda: [
+        Unit("Bandit",     level=2, hp=25, attack=10, defense=3, speed=6, wisdom=1),
+        Unit("Dark Mage",  level=2, hp=18, attack=14, defense=1, speed=7, wisdom=8),
+    ],
+    "Mountain Pass": lambda: [
+        Unit("Stone Troll", level=3, hp=50, attack=12, defense=6, speed=2, wisdom=1),
+    ],
+}
 
 BLACK  = (0, 0, 0)
 WHITE  = (255, 255, 255)
@@ -37,7 +52,9 @@ class MapScene:
     # --- Callbacks ---
 
     def _on_location_confirm(self, name):
-        self._manager.set_scene(BattleScene())
+        from battle_scene import BattleScene
+        enemies = LOCATION_ENEMIES[name]()   # lambda aanroepen = verse units
+        self._manager.set_scene(BattleScene(self._manager.state, enemies))
 
     def _on_button_confirm(self, name):
         if name == "Equipment":
@@ -45,7 +62,7 @@ class MapScene:
             self._manager.set_scene(EquipmentScene(self._manager.state))
         elif name == "Save":
             pass  # TODO
-        
+
     def _focus_locations(self):
         self.focus_row = 0
 

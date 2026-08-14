@@ -52,7 +52,7 @@ class EquipmentScene:
         items = self._filtered_items()
         options = [item.name for item in items]
         if not options:
-            options = ["(no items)"]
+            options = ["(geen items)"]
         self.menu = Menu(
             options=options,
             on_confirm=self._confirm_item,
@@ -126,7 +126,7 @@ class EquipmentScene:
         w, h = screen.get_width(), screen.get_height()
 
         # --- Titel ---
-        titles = ["Choose a unit", "Choose an equipment slot", "Choose an item"]
+        titles = ["Kies een unit", "Kies een slot", "Kies een item"]
         title = self.font.render(titles[self.step], True, WHITE)
         screen.blit(title, (40, 40))
 
@@ -143,7 +143,7 @@ class EquipmentScene:
             self._draw_unit_panel(screen, self.unit, w - 380, 80)
 
         # --- Hint ---
-        hint = self.small_font.render("UP/DOWN: navigate   ENTER: confirm   ESC: back", True, DIM)
+        hint = self.small_font.render("UP/DOWN: navigeer   ENTER: kies   ESC: terug", True, DIM)
         screen.blit(hint, (w // 2 - hint.get_width() // 2, h - 24))
 
     def _draw_unit_panel(self, screen, unit, x, y):
@@ -160,7 +160,7 @@ class EquipmentScene:
         ]
         for slot in SLOTS:
             item = unit.equipment.get(slot)
-            label = item.name if item else "(empty)"
+            label = item.name if item else "(leeg)"
             color = GREEN if item else GRAY
             lines.append(f"  {slot}: {label}")
 
