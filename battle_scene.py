@@ -16,7 +16,7 @@ SCREEN_HEIGHT = 800
 
 
 class BattleScene:
-    def __init__(self):
+    def __init__(self, state, enemies: list):
         self.font = pygame.font.SysFont("monospace", 16)
 
         actions = ["Attack", "Heal", "Defend", "Wait"]
@@ -30,18 +30,16 @@ class BattleScene:
         self.battle_outcome = ""
         self.active_menu   = None
 
-        self.init_battle()
+        self.init_battle(state, enemies)
 
     # --- Setup ---
 
-    def init_battle(self):
-        hero      = Unit("Nemo",   level=1, hp=40, attack=12, defense=4, speed=8,  wisdom=5)
-        companion = Unit("Jeerus", level=1, hp=20, attack=5,  defense=5, speed=6,  wisdom=15)
-        goblin    = Unit("Goblin", level=1, hp=20, attack=8,  defense=2, speed=5,  wisdom=2)
-        orc       = Unit("Orc",    level=2, hp=35, attack=10, defense=4, speed=3,  wisdom=1)
+    def init_battle(self, state, enemies: list):
+        self._state   = state
+        self._enemies = enemies   # bewaar voor reset
 
-        self.battle         = Battle(team=[hero, companion], enemies=[goblin, orc])
-        self.current_unit   = hero
+        self.battle         = Battle(team=state.party, enemies=enemies)
+        self.current_unit   = state.party[0]
         self.battle_log     = []
         self.battle_over    = False
         self.battle_outcome = ""
@@ -124,11 +122,13 @@ class BattleScene:
             if self.battle_over:
                 if self.battle_outcome == "victory":
                     if event.key == pygame.K_RETURN:
-                        from map_scene import MapScene
-                        manager.set_scene(MapScene())
+                        from battle_results_scene import BattleResultsScene
+                        manager.set_scene(
+                            BattleResultsScene(self._state, list(self.battle._defeated))
+                        )
                     else:
                         if event.key == pygame.K_r:
-                            self.init_battle()
+                            self.init_battle(self._state, self._enemies)
                         elif event.key == pygame.K_ESCAPE:
                             from title_scene import TitleScene
                             manager.set_scene(TitleScene())
@@ -162,7 +162,7 @@ class BattleScene:
                 msg, color = "VICTORY!", YELLOW
                 text = self.font.render(msg, True, color)
                 screen.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2, SCREEN_HEIGHT // 2))
-                restart = self.font.render("Press Enter to Return to the map", True, WHITE)
+                restart = self.font.render("Press Enter to view the results", True, WHITE)
                 screen.blit(restart, (SCREEN_WIDTH // 2 - restart.get_width() // 2, SCREEN_HEIGHT // 2 + 40))
             else:
                 msg, color = "DEFEAT...", RED

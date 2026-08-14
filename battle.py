@@ -99,39 +99,35 @@ class Battle:
             if unit == player_unit:
                 msg = self.player_action(unit, player_action_name, target=target)
                 log.append(msg)
+
             elif unit in self.team:
                 # Automatische ally
                 if unit.wisdom > unit.attack:
-                    target = min([u for u in self.team if u.is_alive()], key=lambda u: u.hp, default=None)
-                    if target:
-                        healed = target.heal(unit.wisdom)
-                        log.append(f"{unit.name} heals {target.name} for {healed} HP!")
+                    heal_target = min([u for u in self.team if u.is_alive()], key=lambda u: u.hp, default=None)
+                    if heal_target:
+                        healed = heal_target.heal(unit.wisdom)
+                        log.append(f"{unit.name} heals {heal_target.name} for {healed} HP!")
                 else:
-                    target = self._get_target(self.enemies)
-                    if target:
-                        damage = target.take_damage(unit.attack)
-                        log.append(f"{unit.name} hits {target.name} for {damage} dmg!")
+                    atk_target = self._get_target(self.enemies)
+                    if atk_target:
+                        damage = atk_target.take_damage(unit.attack)
+                        log.append(f"{unit.name} hits {atk_target.name} for {damage} dmg!")
 
             else:
                 # Vijand
-                target = self._get_target(self.team)
-                if target:
-                    damage = target.take_damage(unit.attack)
-                    log.append(f"{unit.name} hits {target.name} for {damage} dmg!")
-                    if not target.is_alive():
-                        log.append(f"  >> {target.name} defeated!")
-                # --- Na elke actie: check defeats ---
-                    for enemy in self.enemies:
-                        if not enemy.is_alive() and enemy not in self._defeated:
-                            self._defeated.add(enemy)
-                            exp = enemy.max_hp + enemy.attack + enemy.defense + enemy.speed + enemy.wisdom
-                            log.append(f"  >> {enemy.name} defeated!")
-                            for ally in self.team:
-                                if ally.is_alive():
-                                    leveled = ally.gain_xp(exp)
-                                    log.append(f"  >> {ally.name} gains {exp} XP!")
-                                    if leveled:
-                                        log.append(f"  >> {ally.name} leveled up to {ally.level}!")
+                atk_target = self._get_target(self.team)
+                if atk_target:
+                    damage = atk_target.take_damage(unit.attack)
+                    log.append(f"{unit.name} hits {atk_target.name} for {damage} dmg!")
+                    if not atk_target.is_alive():
+                        log.append(f"  >> {atk_target.name} defeated!")
+
+            # --- Defeat check: altijd na elke actie ---
+            for enemy in self.enemies:
+                if not enemy.is_alive() and enemy not in self._defeated:
+                    self._defeated.add(enemy)
+                    log.append(f"  >> {enemy.name} defeated!")
+
         return log
 
     def is_over(self) -> bool:

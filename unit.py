@@ -23,21 +23,16 @@ class Unit:
 
     def gain_xp(self, amount: int) -> bool:
         self.exp += amount
-        if self.exp >= self.level * 100:
-            self.levelup()
-            return True
-        return False
+        return self.exp >= self.level * 100   # geeft True terug maar level-up NIET automatisch
 
     def levelup(self):
         self.exp -= self.level * 100
-        self.level = (self.level + 1)
+        self.level += 1
         self.attack += 1
         self.defense += 1
         self.speed += 1
         self.max_hp += 5
         self.wisdom += 1
-        print(f"{self.name} levels up to level {self.level}")
-        print(self)
         return self.level
         
     def take_damage(self, amount: int) -> int:
