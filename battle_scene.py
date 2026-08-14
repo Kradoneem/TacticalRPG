@@ -122,11 +122,16 @@ class BattleScene:
     def handle_event(self, event, manager):
         if event.type == pygame.KEYDOWN:
             if self.battle_over:
-                if event.key == pygame.K_r:
-                    self.init_battle()
-                elif event.key == pygame.K_ESCAPE:
-                    from title_scene import TitleScene
-                    manager.set_scene(TitleScene())
+                if self.battle_outcome == "victory":
+                    if event.key == pygame.K_RETURN:
+                        from map_scene import MapScene
+                        manager.set_scene(MapScene())
+                    else:
+                        if event.key == pygame.K_r:
+                            self.init_battle()
+                        elif event.key == pygame.K_ESCAPE:
+                            from title_scene import TitleScene
+                            manager.set_scene(TitleScene())
                 return
             self.active_menu.handle_key(event.key)
 
@@ -155,9 +160,13 @@ class BattleScene:
         if self.battle_over:
             if self.battle_outcome == "victory":
                 msg, color = "VICTORY!", YELLOW
+                text = self.font.render(msg, True, color)
+                screen.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2, SCREEN_HEIGHT // 2))
+                restart = self.font.render("Press Enter to Return to the map", True, WHITE)
+                screen.blit(restart, (SCREEN_WIDTH // 2 - restart.get_width() // 2, SCREEN_HEIGHT // 2 + 40))
             else:
                 msg, color = "DEFEAT...", RED
-            text = self.font.render(msg, True, color)
-            screen.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2, SCREEN_HEIGHT // 2))
-            restart = self.font.render("Press R to restart or ESC for title", True, WHITE)
-            screen.blit(restart, (SCREEN_WIDTH // 2 - restart.get_width() // 2, SCREEN_HEIGHT // 2 + 40))
+                text = self.font.render(msg, True, color)
+                screen.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2, SCREEN_HEIGHT // 2))
+                restart = self.font.render("Press R to restart or ESC for title", True, WHITE)
+                screen.blit(restart, (SCREEN_WIDTH // 2 - restart.get_width() // 2, SCREEN_HEIGHT // 2 + 40))
