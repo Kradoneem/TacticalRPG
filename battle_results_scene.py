@@ -72,6 +72,7 @@ class BattleResultsScene:
 
     def handle_event(self, event, manager):
         if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
+            manager.save()
             from map_scene import MapScene
             manager.set_scene(MapScene())
 
