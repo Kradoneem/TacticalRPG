@@ -31,9 +31,8 @@ class BattleScene:
         self.battle_over    = False
         self.battle_outcome = ""
 
-        # Menu-stack: actief menu is altijd het laatste element
         self._menu_stack    = []
-        self._pending_skill = None   # geselecteerde skill wachtend op target
+        self._pending_skill = None
 
         self.init_battle(state, enemies)
 
@@ -43,8 +42,7 @@ class BattleScene:
         self._state   = state
         self._enemies = enemies
 
-        self.battle         = Battle(team=state.party, enemies=enemies,
-                                     state=state)
+        self.battle         = Battle(team=state.party, enemies=enemies, state=state)
         self.current_unit   = state.party[0]
         self.battle_log     = []
         self.battle_over    = False
@@ -99,13 +97,10 @@ class BattleScene:
         if action == "Attack":
             targets = [e for e in self.battle.enemies if e.is_alive()]
             self._build_target_menu(targets)
-
         elif action == "Skills":
             self._build_skill_menu(self.current_unit.learned_skills, "Skills")
-
         elif action == "Spells":
             self._build_skill_menu(self.current_unit.learned_spells, "Spells")
-
         else:
             log = self.battle.resolve_turn(self.current_unit, action)
             self._add_log(log)
@@ -119,11 +114,8 @@ class BattleScene:
         self._pending_skill = skill
 
         if skill.target in ("all_enemies", "all_allies", "self"):
-            # Geen target nodig — direct uitvoeren
             log = self.battle.resolve_turn(
-                self.current_unit, skill.category.capitalize(),
-                skill=skill
-            )
+                self.current_unit, skill.category.capitalize(), skill=skill)
             self._add_log(log)
             self._pending_skill = None
             self._build_action_menu()
@@ -136,21 +128,18 @@ class BattleScene:
 
     def _on_target_chosen(self, target):
         if self._pending_skill:
-            action = self._pending_skill.category.capitalize()  # "Skill" of "Spell"
+            action = self._pending_skill.category.capitalize()
             log = self.battle.resolve_turn(
                 self.current_unit, action,
-                target=target, skill=self._pending_skill
-            )
+                target=target, skill=self._pending_skill)
         else:
-            # Gewone aanval
             log = self.battle.resolve_turn(
-                self.current_unit, "Attack", target=target
-            )
+                self.current_unit, "Attack", target=target)
         self._add_log(log)
         self._pending_skill = None
         self._build_action_menu()
 
-    # --- Item callback (aangeroepen door PartyMenu) ---
+    # --- Item callback ---
 
     def on_item_used(self, log: str):
         if log:
@@ -164,14 +153,17 @@ class BattleScene:
 
     # --- Helpers ---
 
-    def _is_targeted(self, unit):
+    def _is_target_menu(self) -> bool:
+        """True als het actieve menu Unit-objecten bevat."""
+        opts = self._active_menu.options
+        return bool(opts) and hasattr(opts[0], "hp")
+
+    def _is_targeted(self, unit) -> bool:
+        if not self._is_target_menu():
+            return False
         menu = self._active_menu
-        return (
-            unit in menu.options and
-            menu.options.index(unit) == menu.selected and
-            len(self._menu_stack) > 1 and
-            isinstance(menu.options[0], type(unit))  # alleen als target-menu actief
-        )
+        return (unit in menu.options and
+                menu.options.index(unit) == menu.selected)
 
     # --- Draw helpers ---
 
@@ -197,16 +189,20 @@ class BattleScene:
         self._draw_bar(surface, x + 8, y + 76, 144, 10, unit.mp, unit.max_mp, BLUE)
 
     def _draw_menu(self, surface):
-        menu    = self._active_menu
-        menu_x  = 80
-        menu_y  = 740
+        # Target-menu: geen tekst, alleen de highlight op de cards doet het werk
+        if self._is_target_menu():
+            return
+
+        menu   = self._active_menu
+        menu_x = 80
+        menu_y = 740
 
         for i, option in enumerate(menu.options):
             active = (i == menu.selected)
             color  = YELLOW if active else WHITE
 
-            # Label: skill/spell toont naam + kosten
             if hasattr(option, "mp_cost"):
+                # Skill of spell
                 cost_parts = []
                 if option.mp_cost: cost_parts.append(f"{option.mp_cost}MP")
                 if option.hp_cost: cost_parts.append(f"{option.hp_cost}HP")
@@ -215,6 +211,7 @@ class BattleScene:
                 color = color if ok else GRAY
                 label = f"{option.name}{cost}"
             else:
+                # Actie-string
                 label = option
 
             surface.blit(
@@ -222,11 +219,13 @@ class BattleScene:
                 (menu_x + i * 220, menu_y)
             )
 
-        # Skill beschrijving als die geselecteerd is
+        # Beschrijving van geselecteerde skill
         sel = menu.options[menu.selected] if menu.options else None
         if sel and hasattr(sel, "description") and sel.description:
-            desc = self.font.render(sel.description, True, DIM)
-            surface.blit(desc, (80, menu_y - 24))
+            surface.blit(
+                self.font.render(sel.description, True, DIM),
+                (menu_x, menu_y - 24)
+            )
 
     def _draw_log(self, surface):
         for i, line in enumerate(self.battle_log):
