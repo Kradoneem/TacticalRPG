@@ -5,14 +5,19 @@ from menu import Menu
 from battle import Battle
 
 # --- Kleuren ---
-BLACK     = (0, 0, 0)
+BLACK     = (0,   0,   0)
 WHITE     = (255, 255, 255)
-RED       = (255, 0, 0)
-YELLOW    = (255, 220, 0)
-DARK_BLUE = (20, 20, 60)
+RED       = (255,   0,   0)
+YELLOW    = (255, 220,   0)
+DARK_BLUE = (20,  20,  60)
+BLUE      = (30,  80, 200)
 
 SCREEN_WIDTH  = 1280
 SCREEN_HEIGHT = 800
+
+# Unit card afmetingen
+CARD_W = 160
+CARD_H = 100   # iets hoger dan voorheen om MP-balk te passen
 
 
 class BattleScene:
@@ -21,14 +26,15 @@ class BattleScene:
 
         actions = ["Attack", "Heal", "Defend", "Wait"]
         self.action_menu = Menu(options=actions, on_confirm=self.confirm_action)
-        self.target_menu = Menu(options=[], on_confirm=self.confirm_target, on_cancel=self.cancel_target)
+        self.target_menu = Menu(options=[], on_confirm=self.confirm_target,
+                                on_cancel=self.cancel_target)
 
-        self.battle        = None
-        self.current_unit  = None
-        self.battle_log    = []
-        self.battle_over   = False
+        self.battle         = None
+        self.current_unit   = None
+        self.battle_log     = []
+        self.battle_over    = False
         self.battle_outcome = ""
-        self.active_menu   = None
+        self.active_menu    = None
 
         self.init_battle(state, enemies)
 
@@ -36,7 +42,7 @@ class BattleScene:
 
     def init_battle(self, state, enemies: list):
         self._state   = state
-        self._enemies = enemies   # bewaar voor reset
+        self._enemies = enemies
 
         self.battle         = Battle(team=state.party, enemies=enemies)
         self.current_unit   = state.party[0]
@@ -62,7 +68,8 @@ class BattleScene:
             self.battle_log = self.battle_log[-5:]
 
     def confirm_target(self, target):
-        log = self.battle.resolve_turn(self.current_unit, self.action_menu.current, target=target)
+        log = self.battle.resolve_turn(self.current_unit, self.action_menu.current,
+                                       target=target)
         self.battle_log.extend(log)
         self.battle_log = self.battle_log[-5:]
         self.active_menu = self.action_menu
@@ -81,19 +88,32 @@ class BattleScene:
 
     # --- Draw helpers ---
 
-    def draw_unit(self, surface, name, hp, max_hp, x, y, color, selected=False):
-        pygame.draw.rect(surface, color, (x, y, 160, 80))
+    def draw_bar(self, surface, x, y, width, height, current, maximum, color):
+        """Tekent een gekleurde balk met zwarte achtergrond."""
+        filled = int(width * (current / maximum)) if maximum > 0 else 0
+        pygame.draw.rect(surface, BLACK,  (x, y, width,  height))
+        pygame.draw.rect(surface, color,  (x, y, filled, height))
+
+    def draw_unit(self, surface, unit, x, y, card_color, selected=False):
+        pygame.draw.rect(surface, card_color, (x, y, CARD_W, CARD_H))
         if selected:
-            pygame.draw.rect(surface, YELLOW, (x, y, 160, 80), 3)
-        name_text = self.font.render(name, True, WHITE)
-        surface.blit(name_text, (x + 8, y + 8))
-        hp_text = self.font.render(f"HP: {hp}/{max_hp}", True, WHITE)
-        surface.blit(hp_text, (x + 8, y + 30))
-        bar_width = 144
-        filled = int(bar_width * (hp / max_hp))
-        hp_bar = (200, 0, 0) if (hp / max_hp) < 0.5 else (0, 200, 0)
-        pygame.draw.rect(surface, BLACK, (x + 8, y + 55, bar_width, 12))
-        pygame.draw.rect(surface, hp_bar, (x + 8, y + 55, filled, 12))
+            pygame.draw.rect(surface, YELLOW, (x, y, CARD_W, CARD_H), 3)
+
+        # Naam
+        name_surf = self.font.render(unit.name, True, WHITE)
+        surface.blit(name_surf, (x + 8, y + 6))
+
+        # HP tekst + balk
+        hp_pct   = unit.hp / unit.max_hp
+        hp_color = (200, 0, 0) if hp_pct < 0.5 else (0, 200, 0)
+        hp_surf  = self.font.render(f"HP {unit.hp}/{unit.max_hp}", True, WHITE)
+        surface.blit(hp_surf, (x + 8, y + 26))
+        self.draw_bar(surface, x + 8, y + 44, 144, 10, unit.hp, unit.max_hp, hp_color)
+
+        # MP tekst + balk
+        mp_surf = self.font.render(f"MP {unit.mp}/{unit.max_mp}", True, WHITE)
+        surface.blit(mp_surf, (x + 8, y + 58))
+        self.draw_bar(surface, x + 8, y + 76, 144, 10, unit.mp, unit.max_mp, BLUE)
 
     def draw_menu(self, surface):
         menu_x = 80
@@ -105,7 +125,7 @@ class BattleScene:
         )
         for i, option in enumerate(options):
             color = YELLOW if i == self.active_menu.selected else WHITE
-            text = self.font.render(f"[{i+1}] {option}", True, color)
+            text  = self.font.render(f"[{i+1}] {option}", True, color)
             surface.blit(text, (menu_x + i * 200, menu_y))
 
     def draw_log(self, surface):
@@ -126,33 +146,33 @@ class BattleScene:
                         manager.set_scene(
                             BattleResultsScene(self._state, list(self.battle._defeated))
                         )
-                    else:
-                        if event.key == pygame.K_r:
-                            self.init_battle(self._state, self._enemies)
-                        elif event.key == pygame.K_ESCAPE:
-                            from title_scene import TitleScene
-                            manager.set_scene(TitleScene())
+                else:
+                    if event.key == pygame.K_r:
+                        self.init_battle(self._state, self._enemies)
+                    elif event.key == pygame.K_ESCAPE:
+                        from title_scene import TitleScene
+                        manager.set_scene(TitleScene())
                 return
             self.active_menu.handle_key(event.key)
 
     def update(self, manager):
         if self.battle.is_over() and not self.battle_over:
-            self.battle_over = True
+            self.battle_over    = True
             self.battle_outcome = self.battle.outcome()
 
     def draw(self, screen):
         screen.fill(BLACK)
 
-        enemy_positions = [(80, 80), (260, 80), (440, 80), (620, 80)]
-        ally_positions  = [(80, 640), (260, 640), (440, 640), (620, 640)]
+        enemy_positions = [(80, 80),  (260, 80),  (440, 80),  (620, 80)]
+        ally_positions  = [(80, 620), (260, 620), (440, 620), (620, 620)]
 
         for unit, (x, y) in zip(self.battle.enemies, enemy_positions):
-            self.draw_unit(screen, unit.name, unit.hp, unit.max_hp, x, y,
-                           color=(160, 40, 40), selected=self.is_targeted(unit))
+            self.draw_unit(screen, unit, x, y,
+                           card_color=(160, 40, 40), selected=self.is_targeted(unit))
 
         for unit, (x, y) in zip(self.battle.team, ally_positions):
-            self.draw_unit(screen, unit.name, unit.hp, unit.max_hp, x, y,
-                           color=(30, 80, 160), selected=self.is_targeted(unit))
+            self.draw_unit(screen, unit, x, y,
+                           card_color=(30, 80, 160), selected=self.is_targeted(unit))
 
         self.draw_menu(screen)
         self.draw_log(screen)
@@ -160,13 +180,12 @@ class BattleScene:
         if self.battle_over:
             if self.battle_outcome == "victory":
                 msg, color = "VICTORY!", YELLOW
-                text = self.font.render(msg, True, color)
-                screen.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2, SCREEN_HEIGHT // 2))
-                restart = self.font.render("Press Enter to view the results", True, WHITE)
-                screen.blit(restart, (SCREEN_WIDTH // 2 - restart.get_width() // 2, SCREEN_HEIGHT // 2 + 40))
+                sub = "Press Enter to view the results"
             else:
                 msg, color = "DEFEAT...", RED
-                text = self.font.render(msg, True, color)
-                screen.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2, SCREEN_HEIGHT // 2))
-                restart = self.font.render("Press R to restart or ESC for title", True, WHITE)
-                screen.blit(restart, (SCREEN_WIDTH // 2 - restart.get_width() // 2, SCREEN_HEIGHT // 2 + 40))
+                sub = "Press R to restart or ESC for title"
+
+            text = self.font.render(msg, True, color)
+            sub_text = self.font.render(sub, True, WHITE)
+            screen.blit(text,     (SCREEN_WIDTH // 2 - text.get_width()     // 2, SCREEN_HEIGHT // 2))
+            screen.blit(sub_text, (SCREEN_WIDTH // 2 - sub_text.get_width() // 2, SCREEN_HEIGHT // 2 + 40))

@@ -5,15 +5,15 @@ from unit import Unit
 
 LOCATION_ENEMIES = {
     "Forest Outskirts": lambda: [
-        Unit("Goblin", level=1, hp=20, attack=8,  defense=2, speed=5, wisdom=2),
-        Unit("Orc",    level=2, hp=35, attack=10, defense=4, speed=3, wisdom=1),
+        Unit("Goblin", level=1, hp=20, attack=8,  defense=2, speed=5, wisdom=2, mp=0),
+        Unit("Orc",    level=2, hp=35, attack=10, defense=4, speed=3, wisdom=1, mp=0),
     ],
     "Ruined Village": lambda: [
-        Unit("Bandit",    level=2, hp=25, attack=10, defense=3, speed=6, wisdom=1),
-        Unit("Dark Mage", level=2, hp=18, attack=14, defense=1, speed=7, wisdom=8),
+        Unit("Bandit",    level=2, hp=25, attack=10, defense=3, speed=6, wisdom=1, mp=0),
+        Unit("Dark Mage", level=2, hp=18, attack=14, defense=1, speed=7, wisdom=8, mp=20),
     ],
     "Mountain Pass": lambda: [
-        Unit("Stone Troll", level=3, hp=50, attack=12, defense=6, speed=2, wisdom=1),
+        Unit("Stone Troll", level=3, hp=50, attack=12, defense=6, speed=2, wisdom=1, mp=0),
     ],
 }
 
