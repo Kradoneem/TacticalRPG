@@ -3,6 +3,7 @@ from unit import Unit
 from equipment import Equipment
 from menu import Menu
 from battle import Battle
+from item_menu import ItemMenuOverlay
 
 # --- Kleuren ---
 BLACK     = (0,   0,   0)
@@ -15,16 +16,15 @@ BLUE      = (30,  80, 200)
 SCREEN_WIDTH  = 1280
 SCREEN_HEIGHT = 800
 
-# Unit card afmetingen
 CARD_W = 160
-CARD_H = 100   # iets hoger dan voorheen om MP-balk te passen
+CARD_H = 100
 
 
 class BattleScene:
     def __init__(self, state, enemies: list):
         self.font = pygame.font.SysFont("monospace", 16)
 
-        actions = ["Attack", "Heal", "Defend", "Wait"]
+        actions = ["Attack", "Heal", "Item", "Defend", "Wait"]
         self.action_menu = Menu(options=actions, on_confirm=self.confirm_action)
         self.target_menu = Menu(options=[], on_confirm=self.confirm_target,
                                 on_cancel=self.cancel_target)
@@ -35,6 +35,7 @@ class BattleScene:
         self.battle_over    = False
         self.battle_outcome = ""
         self.active_menu    = None
+        self._item_overlay  = None   # actief als item-menu open is
 
         self.init_battle(state, enemies)
 
@@ -51,17 +52,28 @@ class BattleScene:
         self.battle_outcome = ""
         self.active_menu    = self.action_menu
         self.action_menu.selected = 0
+        self._item_overlay  = None
 
     # --- Acties ---
 
     def confirm_action(self, action):
-        if action in ["Attack", "Heal"]:
-            if action == "Attack":
-                self.target_menu.options = [e for e in self.battle.enemies if e.is_alive()]
-            elif action == "Heal":
-                self.target_menu.options = [u for u in self.battle.team if u.is_alive()]
+        if action == "Attack":
+            self.target_menu.options = [e for e in self.battle.enemies if e.is_alive()]
             self.target_menu.selected = 0
             self.active_menu = self.target_menu
+
+        elif action == "Heal":
+            self.target_menu.options = [u for u in self.battle.team if u.is_alive()]
+            self.target_menu.selected = 0
+            self.active_menu = self.target_menu
+
+        elif action == "Item":
+            self._item_overlay = ItemMenuOverlay(
+                items   = self._state.items,
+                party   = self._state.party,
+                on_done = self._on_item_done,
+            )
+
         else:
             log = self.battle.resolve_turn(self.current_unit, action, target=None)
             self.battle_log.extend(log)
@@ -77,6 +89,18 @@ class BattleScene:
     def cancel_target(self):
         self.active_menu = self.action_menu
 
+    def _on_item_done(self, log: str):
+        self._item_overlay = None
+        if log:
+            # Item gebruikt — telt als beurt
+            self.battle_log.append(log)
+            self.battle_log = self.battle_log[-5:]
+            turn_log = self.battle.resolve_turn(self.current_unit, "Wait", target=None)
+            self.battle_log.extend(turn_log)
+            self.battle_log = self.battle_log[-5:]
+        # Geen log = geannuleerd, geen beurt verbruikt
+        self.active_menu = self.action_menu
+
     # --- Helpers ---
 
     def is_targeted(self, unit):
@@ -89,28 +113,24 @@ class BattleScene:
     # --- Draw helpers ---
 
     def draw_bar(self, surface, x, y, width, height, current, maximum, color):
-        """Tekent een gekleurde balk met zwarte achtergrond."""
         filled = int(width * (current / maximum)) if maximum > 0 else 0
-        pygame.draw.rect(surface, BLACK,  (x, y, width,  height))
-        pygame.draw.rect(surface, color,  (x, y, filled, height))
+        pygame.draw.rect(surface, BLACK, (x, y, width,  height))
+        pygame.draw.rect(surface, color, (x, y, filled, height))
 
     def draw_unit(self, surface, unit, x, y, card_color, selected=False):
         pygame.draw.rect(surface, card_color, (x, y, CARD_W, CARD_H))
         if selected:
             pygame.draw.rect(surface, YELLOW, (x, y, CARD_W, CARD_H), 3)
 
-        # Naam
         name_surf = self.font.render(unit.name, True, WHITE)
         surface.blit(name_surf, (x + 8, y + 6))
 
-        # HP tekst + balk
         hp_pct   = unit.hp / unit.max_hp
         hp_color = (200, 0, 0) if hp_pct < 0.5 else (0, 200, 0)
         hp_surf  = self.font.render(f"HP {unit.hp}/{unit.max_hp}", True, WHITE)
         surface.blit(hp_surf, (x + 8, y + 26))
         self.draw_bar(surface, x + 8, y + 44, 144, 10, unit.hp, unit.max_hp, hp_color)
 
-        # MP tekst + balk
         mp_surf = self.font.render(f"MP {unit.mp}/{unit.max_mp}", True, WHITE)
         surface.blit(mp_surf, (x + 8, y + 58))
         self.draw_bar(surface, x + 8, y + 76, 144, 10, unit.mp, unit.max_mp, BLUE)
@@ -138,22 +158,30 @@ class BattleScene:
     # --- Scene interface ---
 
     def handle_event(self, event, manager):
-        if event.type == pygame.KEYDOWN:
-            if self.battle_over:
-                if self.battle_outcome == "victory":
-                    if event.key == pygame.K_RETURN:
-                        from battle_results_scene import BattleResultsScene
-                        manager.set_scene(
-                            BattleResultsScene(self._state, list(self.battle._defeated))
-                        )
-                else:
-                    if event.key == pygame.K_r:
-                        self.init_battle(self._state, self._enemies)
-                    elif event.key == pygame.K_ESCAPE:
-                        from title_scene import TitleScene
-                        manager.set_scene(TitleScene())
-                return
-            self.active_menu.handle_key(event.key)
+        if event.type != pygame.KEYDOWN:
+            return
+
+        if self.battle_over:
+            if self.battle_outcome == "victory":
+                if event.key == pygame.K_RETURN:
+                    from battle_results_scene import BattleResultsScene
+                    manager.set_scene(
+                        BattleResultsScene(self._state, list(self.battle._defeated))
+                    )
+            else:
+                if event.key == pygame.K_r:
+                    self.init_battle(self._state, self._enemies)
+                elif event.key == pygame.K_ESCAPE:
+                    from title_scene import TitleScene
+                    manager.set_scene(TitleScene())
+            return
+
+        # Item overlay vangt input als die open is
+        if self._item_overlay:
+            self._item_overlay.handle_key(event.key)
+            return
+
+        self.active_menu.handle_key(event.key)
 
     def update(self, manager):
         if self.battle.is_over() and not self.battle_over:
@@ -177,6 +205,10 @@ class BattleScene:
         self.draw_menu(screen)
         self.draw_log(screen)
 
+        # Item overlay tekenen bovenop alles
+        if self._item_overlay:
+            self._item_overlay.draw(screen)
+
         if self.battle_over:
             if self.battle_outcome == "victory":
                 msg, color = "VICTORY!", YELLOW
@@ -185,7 +217,7 @@ class BattleScene:
                 msg, color = "DEFEAT...", RED
                 sub = "Press R to restart or ESC for title"
 
-            text = self.font.render(msg, True, color)
+            text     = self.font.render(msg, True, color)
             sub_text = self.font.render(sub, True, WHITE)
             screen.blit(text,     (SCREEN_WIDTH // 2 - text.get_width()     // 2, SCREEN_HEIGHT // 2))
             screen.blit(sub_text, (SCREEN_WIDTH // 2 - sub_text.get_width() // 2, SCREEN_HEIGHT // 2 + 40))

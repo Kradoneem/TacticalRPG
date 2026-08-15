@@ -2,18 +2,19 @@ import pygame
 from battle_scene import BattleScene
 from menu import Menu
 from unit import Unit
+from item_menu import ItemMenuOverlay
 
 LOCATION_ENEMIES = {
     "Forest Outskirts": lambda: [
-        Unit("Goblin", level=1, hp=20, attack=8,  defense=2, speed=5, wisdom=2, mp=0),
-        Unit("Orc",    level=2, hp=35, attack=10, defense=4, speed=3, wisdom=1, mp=0),
+        Unit("Goblin", level=1, hp=20, mp=0,  attack=8,  defense=2, speed=5, wisdom=2),
+        Unit("Orc",    level=2, hp=35, mp=0,  attack=10, defense=4, speed=3, wisdom=1),
     ],
     "Ruined Village": lambda: [
-        Unit("Bandit",    level=2, hp=25, attack=10, defense=3, speed=6, wisdom=1, mp=0),
-        Unit("Dark Mage", level=2, hp=18, attack=14, defense=1, speed=7, wisdom=8, mp=20),
+        Unit("Bandit",    level=2, hp=25, mp=0,  attack=10, defense=3, speed=6, wisdom=1),
+        Unit("Dark Mage", level=2, hp=18, mp=20, attack=14, defense=1, speed=7, wisdom=8),
     ],
     "Mountain Pass": lambda: [
-        Unit("Stone Troll", level=3, hp=50, attack=12, defense=6, speed=2, wisdom=1, mp=0),
+        Unit("Stone Troll", level=3, hp=50, mp=0, attack=12, defense=6, speed=2, wisdom=1),
     ],
 }
 
@@ -37,8 +38,9 @@ class MapScene:
         self.small_font = pygame.font.SysFont("monospace", 14)
         self.focus_row  = 0
 
-        self._manager    = None
-        self._save_flash = 0   # frames om "Saved!" te tonen
+        self._manager      = None
+        self._save_flash   = 0
+        self._item_overlay = None
 
         self.location_menu = Menu(
             options=[loc["name"] for loc in LOCATIONS],
@@ -46,7 +48,7 @@ class MapScene:
         )
 
         self.button_menu = Menu(
-            options=["Equipment", "Save"],
+            options=["Equipment", "Items", "Save"],
             on_confirm=self._on_button_confirm,
             on_cancel=self._focus_locations,
         )
@@ -61,10 +63,22 @@ class MapScene:
         if name == "Equipment":
             from equipment_scene import EquipmentScene
             self._manager.set_scene(EquipmentScene(self._manager.state))
+
+        elif name == "Items":
+            self._item_overlay = ItemMenuOverlay(
+                items   = self._manager.state.items,
+                party   = self._manager.state.party,
+                on_done = self._on_item_done,
+            )
+
         elif name == "Save":
             success = self._manager.save()
             if success:
-                self._save_flash = 120   # ~2 seconden bij 60fps
+                self._save_flash = 120
+
+    def _on_item_done(self, log: str):
+        self._item_overlay = None
+        # Op de map geen beurt — log negeren
 
     def _focus_locations(self):
         self.focus_row = 0
@@ -73,6 +87,11 @@ class MapScene:
 
     def handle_event(self, event, manager):
         if event.type != pygame.KEYDOWN:
+            return
+
+        # Item overlay vangt input als die open is
+        if self._item_overlay:
+            self._item_overlay.handle_key(event.key)
             return
 
         if event.key == pygame.K_DOWN and self.focus_row == 0:
@@ -90,7 +109,7 @@ class MapScene:
             self.button_menu.handle_key(event.key)
 
     def update(self, manager):
-        self._manager = manager   # hier cachen, niet in handle_event
+        self._manager = manager
 
         if self._save_flash > 0:
             self._save_flash -= 1
@@ -115,7 +134,7 @@ class MapScene:
 
         # --- Knoppen rechtsonder ---
         btn_y       = h - 60
-        btn_x_start = w - 260
+        btn_x_start = w - 390
         for i, label in enumerate(self.button_menu.options):
             active = (self.focus_row == 1 and i == self.button_menu.selected)
             color  = YELLOW if active else GRAY
@@ -127,7 +146,13 @@ class MapScene:
             saved_surf = self.font.render("Game saved!", True, GREEN)
             screen.blit(saved_surf, (w // 2 - saved_surf.get_width() // 2, h - 90))
 
+        # --- Item overlay bovenop alles ---
+        if self._item_overlay:
+            self._item_overlay.draw(screen)
+
         # --- Hint ---
+        if self._item_overlay:
+            return   # overlay heeft eigen hint
         if self.focus_row == 0:
             hint_text = "LEFT/RIGHT: locatie   DOWN: menu   ENTER: ga"
         else:
