@@ -1,6 +1,7 @@
 from unit import Unit
 from equipment import Equipment
 from item import Item
+import skill_data
 
 
 class GameState:
@@ -18,10 +19,16 @@ class GameState:
     # --- Defaults ---
 
     def _default_party(self) -> list:
-        return [
-            Unit(name="Nemo",   level=1, hp=40, attack=12, defense=4, speed=8,  wisdom=5, mp=0),
-            Unit(name="Jeerus", level=1, hp=20, attack=5,  defense=5, speed=6,  wisdom=15, mp=50),
-        ]
+        nemo = Unit(name="Nemo", level=1, hp=40, attack=12,
+                    defense=4, speed=8, wisdom=5, mp=0)
+        nemo.learn(skill_data.PowerStrike)
+
+        jeerus = Unit(name="Jeerus", level=1, hp=20, attack=5,
+                      defense=5, speed=6, wisdom=15, mp=50)
+        jeerus.learn(skill_data.Heal)
+        jeerus.learn(skill_data.Fireball)
+
+        return [nemo, jeerus]
 
     def _default_equipment(self) -> list:
         return [
@@ -63,25 +70,30 @@ class GameState:
         return state
 
     # --- Unit serialisatie ---
+    # Opmerking: learned skills/spells worden niet geserialiseerd —
+    # ze worden bij from_dict opnieuw toegekend op basis van naam.
+    # Dit voorkomt complexe skill-serialisatie zolang er geen class-systeem is.
 
     @staticmethod
     def _unit_to_dict(unit: Unit) -> dict:
         return {
-            "name":      unit.name,
-            "level":     unit.level,
-            "hp":        unit.hp,
-            "max_hp":    unit.max_hp,
-            "mp":        unit.mp,
-            "max_mp":    unit.max_mp,
-            "attack":    unit.attack,
-            "defense":   unit.defense,
-            "speed":     unit.speed,
-            "wisdom":    unit.wisdom,
-            "exp":       unit.exp,
-            "equipment": {
+            "name":          unit.name,
+            "level":         unit.level,
+            "hp":            unit.hp,
+            "max_hp":        unit.max_hp,
+            "mp":            unit.mp,
+            "max_mp":        unit.max_mp,
+            "attack":        unit.attack,
+            "defense":       unit.defense,
+            "speed":         unit.speed,
+            "wisdom":        unit.wisdom,
+            "exp":           unit.exp,
+            "equipment":     {
                 slot: item.to_dict()
                 for slot, item in unit.equipment.items()
             },
+            "learned_skills": [s.name for s in unit.learned_skills],
+            "learned_spells": [s.name for s in unit.learned_spells],
         }
 
     @staticmethod
@@ -94,14 +106,24 @@ class GameState:
             defense = data["defense"],
             speed   = data["speed"],
             wisdom  = data["wisdom"],
+            mp      = data.get("max_mp", 0),
             exp     = data.get("exp", 0),
         )
-        unit.hp     = data["hp"]
-        unit.max_mp = data.get("max_mp", unit.max_mp)
-        unit.mp     = data.get("mp", unit.max_mp)
+        unit.hp = data["hp"]
+        unit.mp = data.get("mp", unit.max_mp)
 
         for slot, item_data in data.get("equipment", {}).items():
             item = Equipment.from_dict(item_data)
             unit.equipment[slot] = item   # direct — geen dubbele stat-bonus
+
+        # Skills en spells herstellen op naam
+        skill_lookup = {s.name: s for s in vars(skill_data).values()
+                        if hasattr(s, "category")}
+        for name in data.get("learned_skills", []):
+            if name in skill_lookup:
+                unit.learn(skill_lookup[name])
+        for name in data.get("learned_spells", []):
+            if name in skill_lookup:
+                unit.learn(skill_lookup[name])
 
         return unit

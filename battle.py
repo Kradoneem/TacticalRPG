@@ -7,79 +7,132 @@ class Battle:
     Turn order is determined by speed (highest goes first).
     """
 
-    def __init__(self, team: list[Unit], enemies: list[Unit]):
-        self.team = team
-        self.enemies = enemies
+    def __init__(self, team: list[Unit], enemies: list[Unit], state=None):
+        self.team      = team
+        self.enemies   = enemies
+        self._state    = state    # nodig voor item_cost checks
         self._defeated = set()
 
     def _get_turn_order(self) -> list[Unit]:
-        """Returns all living units sorted by speed, highest first."""
         all_units = self.team + self.enemies
         return sorted(all_units, key=lambda u: u.speed, reverse=True)
 
     def _get_target(self, targets: list[Unit]) -> Unit | None:
-        """Returns the living unit with the lowest HP from a given list."""
         living = [u for u in targets if u.is_alive()]
         return min(living, key=lambda u: u.hp) if living else None
 
     def _team_alive(self, team: list[Unit]) -> bool:
         return any(u.is_alive() for u in team)
 
-    def run(self) -> None:
-        print("=== BATTLE START ===\n")
-        round_number = 1
-        while self._team_alive(self.team) and self._team_alive(self.enemies):
-            print(f"--- Round {round_number} ---")
-            round_number += 1
-            turn_order = self._get_turn_order()
+    def _check_defeats(self, log: list[str]) -> None:
+        for enemy in self.enemies:
+            if not enemy.is_alive() and enemy not in self._defeated:
+                self._defeated.add(enemy)
+                log.append(f"  >> {enemy.name} defeated!")
 
-            for unit in turn_order:
-                if not unit.is_alive():
-                    continue
-            
-                if unit.wisdom > unit.attack:
-                    target = self._get_target(self.team if unit in self.team else self.enemies)
-                    if target is None:
-                        continue
-                    healed = target.heal(unit.wisdom)
-                    print(f"{unit.name} heals {target.name} for {healed} HP! "
-                        f"({target.hp}/{target.max_hp} HP remaining)")
-                else:
-                    target = self._get_target(self.enemies if unit in self.team else self.team)
-                    if target is None:
-                        continue
-                    damage = target.take_damage(unit.attack)
-                    print(f"{unit.name} hits {target.name} for {damage} damage! "
-                        f"({target.hp}/{target.max_hp} HP remaining)")
-                    if not target.is_alive():
-                        print(f"  >> {target.name} is defeated!")
-                        for ally in self.team:
-                            if ally.is_alive():
-                                # ally.gain_xp(target.hp+target.attack+target.defense+target.speed+target.wisdom)
-                                exp = (target.max_hp+target.attack+target.defense+target.speed+target.wisdom)
-                                ally.gain_xp(exp)
+    # --- Skill/spell resolutie ---
 
-    def player_action(self, actor: Unit, action: str, target: Unit = None) -> str:
+    def _resolve_skill(self, actor: Unit, skill, targets: list[Unit],
+                       log: list[str]) -> None:
+        """Past een skill/spell toe op één of meerdere targets. Betaalt de cost."""
+        ok, reason = skill.can_use(actor, self._state)
+        if not ok:
+            log.append(f"{actor.name} can't use {skill.name}: {reason}")
+            return
+
+        skill.pay_cost(actor, self._state)
+
+        if skill.target in ("single_enemy", "single_ally"):
+            target = targets[0] if targets else None
+            if target:
+                log.append(skill.apply(actor, target, self._state))
+        else:
+            # all_enemies / all_allies / self
+            for t in targets:
+                if t.is_alive():
+                    log.append(skill.apply(actor, t, self._state))
+
+    # --- AI: automatische unit kiest actie ---
+
+    def _resolve_unit(self, unit: Unit, log: list[str]) -> None:
+        """AI-beslissing voor allies en enemies."""
+        is_ally = unit in self.team
+
+        # Probeer eerst een bruikbare skill of spell
+        usable = unit.usable_skills(self._state) + unit.usable_spells(self._state)
+        if usable:
+            skill = usable[0]   # simpele prioriteit: eerste bruikbare
+            if skill.target in ("single_enemy", "all_enemies"):
+                targets = ([self._get_target(self.enemies)] if is_ally
+                           else [self._get_target(self.team)])
+                targets = [t for t in targets if t]
+            elif skill.target in ("single_ally", "all_allies"):
+                pool    = self.team if is_ally else self.enemies
+                targets = [min([u for u in pool if u.is_alive()], key=lambda u: u.hp,
+                               default=None)]
+                targets = [t for t in targets if t]
+            else:
+                targets = [unit]
+
+            if targets:
+                self._resolve_skill(unit, skill, targets, log)
+                return
+
+        # Fallback: standaard aanval of heal
+        if is_ally:
+            if unit.wisdom > unit.attack:
+                heal_target = min([u for u in self.team if u.is_alive()],
+                                  key=lambda u: u.hp, default=None)
+                if heal_target:
+                    healed = heal_target.heal(unit.wisdom)
+                    log.append(f"{unit.name} heals {heal_target.name} "
+                               f"for {healed} HP!")
+            else:
+                atk_target = self._get_target(self.enemies)
+                if atk_target:
+                    dmg = atk_target.take_damage(unit.attack)
+                    log.append(f"{unit.name} hits {atk_target.name} "
+                               f"for {dmg} dmg!")
+        else:
+            atk_target = self._get_target(self.team)
+            if atk_target:
+                dmg = atk_target.take_damage(unit.attack)
+                log.append(f"{unit.name} hits {atk_target.name} for {dmg} dmg!")
+                if not atk_target.is_alive():
+                    log.append(f"  >> {atk_target.name} defeated!")
+
+    # --- Player action ---
+
+    def player_action(self, actor: Unit, action: str,
+                      target: Unit = None, skill=None) -> str:
         if action == "Attack":
             if target is None:
                 target = self._get_target(self.enemies)
             if target is None:
                 return "No enemies left."
-            damage = target.take_damage(actor.attack)
-            return f"{actor.name} hits {target.name} for {damage} dmg! ({target.hp}/{target.max_hp} HP)"
+            dmg = target.take_damage(actor.attack)
+            return (f"{actor.name} hits {target.name} for {dmg} dmg! "
+                    f"({target.hp}/{target.max_hp} HP)")
 
-        elif action == "Heal":
-            if target is None:
-                target = min(
-                    [u for u in self.team if u.is_alive()],
-                    key=lambda u: u.hp,
-                    default=None
-                )
-            if target is None:
-                return "No allies to heal."
-            healed = target.heal(actor.wisdom)
-            return f"{actor.name} heals {target.name} for {healed} HP! ({target.hp}/{target.max_hp} HP)"
-        
+        elif action == "Skill" or action == "Spell":
+            if skill is None:
+                return "No skill selected."
+            log = []
+            # Bepaal targets op basis van skill.target
+            if skill.target == "single_enemy":
+                targets = [target] if target else [self._get_target(self.enemies)]
+            elif skill.target == "single_ally":
+                targets = [target] if target else [self._get_target(self.team)]
+            elif skill.target == "all_enemies":
+                targets = [e for e in self.enemies if e.is_alive()]
+            elif skill.target == "all_allies":
+                targets = [u for u in self.team if u.is_alive()]
+            else:
+                targets = [actor]
+            targets = [t for t in targets if t]
+            self._resolve_skill(actor, skill, targets, log)
+            return " | ".join(log) if log else f"{actor.name} uses {skill.name}."
+
         elif action == "Defend":
             return f"{actor.name} takes a defensive stance."
 
@@ -87,55 +140,45 @@ class Battle:
             return f"{actor.name} waits."
 
         return f"Unknown action: {action}"
-    
-    def resolve_turn(self, player_unit: Unit, player_action_name: str, target: Unit = None) -> list[str]:
-        log = []
+
+    # --- Volledige ronde ---
+
+    def resolve_turn(self, player_unit: Unit, player_action_name: str,
+                     target: Unit = None, skill=None) -> list[str]:
+        log        = []
         turn_order = self._get_turn_order()
 
         for unit in turn_order:
             if not unit.is_alive():
                 continue
-
             if unit == player_unit:
-                msg = self.player_action(unit, player_action_name, target=target)
+                msg = self.player_action(unit, player_action_name,
+                                         target=target, skill=skill)
                 log.append(msg)
-
-            elif unit in self.team:
-                # Automatische ally
-                if unit.wisdom > unit.attack:
-                    heal_target = min([u for u in self.team if u.is_alive()], key=lambda u: u.hp, default=None)
-                    if heal_target:
-                        healed = heal_target.heal(unit.wisdom)
-                        log.append(f"{unit.name} heals {heal_target.name} for {healed} HP!")
-                else:
-                    atk_target = self._get_target(self.enemies)
-                    if atk_target:
-                        damage = atk_target.take_damage(unit.attack)
-                        log.append(f"{unit.name} hits {atk_target.name} for {damage} dmg!")
-
             else:
-                # Vijand
-                atk_target = self._get_target(self.team)
-                if atk_target:
-                    damage = atk_target.take_damage(unit.attack)
-                    log.append(f"{unit.name} hits {atk_target.name} for {damage} dmg!")
-                    if not atk_target.is_alive():
-                        log.append(f"  >> {atk_target.name} defeated!")
+                self._resolve_unit(unit, log)
+            self._check_defeats(log)
 
-            # --- Defeat check: altijd na elke actie ---
-            for enemy in self.enemies:
-                if not enemy.is_alive() and enemy not in self._defeated:
-                    self._defeated.add(enemy)
-                    log.append(f"  >> {enemy.name} defeated!")
+        return log
+
+    def resolve_other_turns(self, player_unit: Unit) -> list[str]:
+        """Ronde zonder player action — na item gebruik."""
+        log        = []
+        turn_order = self._get_turn_order()
+
+        for unit in turn_order:
+            if not unit.is_alive() or unit == player_unit:
+                continue
+            self._resolve_unit(unit, log)
+            self._check_defeats(log)
 
         return log
 
     def is_over(self) -> bool:
-        return not self._team_alive(self.team) or not self._team_alive(self.enemies)
+        return (not self._team_alive(self.team) or
+                not self._team_alive(self.enemies))
 
     def outcome(self) -> str:
-        if not self._team_alive(self.enemies):
-            return "victory"
-        if not self._team_alive(self.team):
-            return "defeat"
+        if not self._team_alive(self.enemies): return "victory"
+        if not self._team_alive(self.team):    return "defeat"
         return "ongoing"
